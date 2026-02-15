@@ -1,0 +1,60 @@
+use crate::domain::entities::person::{Person, PersonData};
+use crate::domain::ports::output::person_repository::{PersonError, PersonRepository};
+use uuid::Uuid;
+
+// O que o mundo externo envia para o caso de uso
+pub struct CreatePersonCommand {
+    pub tenant_id: Uuid,
+    pub name: String,
+    pub created_by: Uuid,
+    pub data: PersonData,
+}
+
+pub struct CreatePersonUseCase<R: PersonRepository> {
+    repository: R,
+}
+
+impl<R: PersonRepository> CreatePersonUseCase<R> {
+    pub fn new(repository: R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn execute(&self, cmd: CreatePersonCommand) -> Result<Person, PersonError> {
+        // 1. Lógica de Negócio: Verificar se já existe alguém com esse documento no mesmo tenant
+        let tax_id = match &cmd.data {
+            PersonData::Individual { tax_id } => tax_id,
+            PersonData::LegalEntity {
+                business_tax_id, ..
+            } => business_tax_id,
+            PersonData::Foreign {
+                passport_number, ..
+            } => passport_number,
+        };
+
+        if self
+            .repository
+            .exists_by_tax_id(tax_id, cmd.tenant_id)
+            .await?
+        {
+            return Err(PersonError::Conflict(format!(
+                "Tax ID {} already exists for this tenant",
+                tax_id
+            )));
+        }
+
+        // 2. Criação da Entidade de Domínio (Onde as regras de negócio residem)
+        let person = Person {
+            id: Uuid::new_v4(), // No Rust, geramos o UUID no domínio para manter a posse do ID
+            name: cmd.name,
+            tenant_id: cmd.tenant_id,
+            created_by: cmd.created_by,
+            created_at: chrono::Utc::now(),
+            data: cmd.data,
+        };
+
+        // 3. Persistência através do Port de Saída (Adapter será chamado aqui)
+        self.repository.save(&person).await?;
+
+        Ok(person)
+    }
+}

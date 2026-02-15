@@ -1,0 +1,99 @@
+openapi: 3.0.0
+info:
+  title: Person Service API
+  version: 1.0.0
+paths:
+  /persons:
+    post:
+      summary: Create a new person
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePersonRequest'
+      responses:
+        '201':
+          description: Person created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '500':
+          description: Internal Server Error
+components:
+  schemas:
+    CreatePersonRequest:
+      type: object
+      required:
+        - name
+        - data
+      properties:
+        name:
+          type: string
+          example: John Doe
+        data:
+          $ref: '#/components/schemas/PersonData'
+    PersonData:
+      oneOf:
+        - $ref: '#/components/schemas/IndividualPersonData'
+        - $ref: '#/components/schemas/LegalEntityPersonData'
+        - $ref: '#/components/schemas/ForeignPersonData'
+    IndividualPersonData:
+      type: object
+      required:
+        - tax_id
+      properties:
+        tax_id:
+          type: string
+          example: '123.456.789-00'
+    LegalEntityPersonData:
+      type: object
+      required:
+        - business_tax_id
+      properties:
+        business_tax_id:
+          type: string
+          example: '00.000.000/0001-00'
+        trade_name:
+          type: string
+          nullable: true
+          example: 'Acme Corporation'
+    ForeignPersonData:
+      type: object
+      required:
+        - passport_number
+        - country_code
+      properties:
+        passport_number:
+          type: string
+          example: 'AB123456'
+        country_code:
+          type: string
+          example: 'US'
+    Person:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - created_by
+        - created_at
+        - data
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tenant_id:
+          type: string
+          format: uuid
+        created_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/PersonData'
