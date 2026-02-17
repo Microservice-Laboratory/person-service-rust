@@ -3,7 +3,9 @@ use crate::domain::ports::output::person_repository::{PersonError, PersonReposit
 use async_trait::async_trait;
 use sqlx::PgPool;
 use sqlx::Row;
+use crate::domain::value_objects::{Cnpj, Cpf};
 use uuid::Uuid;
+use std::convert::TryFrom;
 
 pub struct PostgresPersonRepository {
     pool: PgPool,
@@ -73,7 +75,7 @@ impl PersonRepository for PostgresPersonRepository {
                     "INSERT INTO individual (person_id, tax_id, tenant_id, created_by) VALUES ($1, $2, $3, $4)",
                 )
                 .bind(person.id)
-                .bind(tax_id)
+                .bind(tax_id.as_str())
                 .bind(person.tenant_id)
                 .bind(person.created_by)
                 .execute(&mut *tx)
@@ -87,7 +89,7 @@ impl PersonRepository for PostgresPersonRepository {
                     "INSERT INTO legal_entity (person_id, business_tax_id, trade_name, tenant_id, created_by) VALUES ($1, $2, $3, $4, $5)",
                 )
                 .bind(person.id)
-                .bind(business_tax_id)
+                .bind(business_tax_id.as_str())
                 .bind(trade_name)
                 .bind(person.tenant_id)
                 .bind(person.created_by)
@@ -135,17 +137,27 @@ impl PersonRepository for PostgresPersonRepository {
 
                 // Aqui acontece a "mágica" da reconstrução do polimorfismo
                 let data = match person_type.as_str() {
-                    "individual" => PersonData::Individual {
-                        tax_id: individual_tax_id.ok_or_else(|| {
+                    "individual" => {
+                        let tax_id_str = individual_tax_id.ok_or_else(|| {
                             PersonError::DatabaseError("Missing individual data".to_string())
-                        })?,
-                    },
-                    "legal_entity" => PersonData::LegalEntity {
-                        business_tax_id: legal_business_tax_id.ok_or_else(|| {
+                        })?;
+                        PersonData::Individual {
+                            tax_id: Cpf::try_from(tax_id_str).map_err(|e| {
+                                PersonError::DatabaseError(format!("Invalid CPF in database: {}", e))
+                            })?,
+                        }
+                    }
+                    "legal_entity" => {
+                        let business_tax_id_str = legal_business_tax_id.ok_or_else(|| {
                             PersonError::DatabaseError("Missing legal entity data".to_string())
-                        })?,
-                        trade_name: legal_trade_name,
-                    },
+                        })?;
+                        PersonData::LegalEntity {
+                            business_tax_id: Cnpj::try_from(business_tax_id_str).map_err(|e| {
+                                PersonError::DatabaseError(format!("Invalid CNPJ in database: {}", e))
+                            })?,
+                            trade_name: legal_trade_name,
+                        }
+                    }
                     _ => {
                         return Err(PersonError::DatabaseError(
                             "Unknown person type".to_string(),

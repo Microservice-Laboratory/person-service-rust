@@ -40,3 +40,7 @@ target
 
 # 5. SQLx (Atenção aqui - explicarei abaixo)
 /.sqlx
+
+specs/
+docs/
+.agent/*
