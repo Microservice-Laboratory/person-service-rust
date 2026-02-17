@@ -2,15 +2,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::domain::value_objects::{Cnpj, Cpf};
 use crate::domain::entities::outbox::OutboxEvent;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PersonData {
     Individual {
-        tax_id: String,
+        tax_id: Cpf,
     },
     LegalEntity {
-        business_tax_id: String,
+        business_tax_id: Cnpj,
         trade_name: Option<String>,
     },
     Foreign {
