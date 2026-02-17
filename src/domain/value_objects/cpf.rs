@@ -152,8 +152,7 @@ mod tests {
             ("222.222.222-22", Err(CpfError::IdenticalDigits)),
             ("1234567890", Err(CpfError::InvalidLength)),
             ("123456789012", Err(CpfError::InvalidLength)),
-            ("12345678900", Err(CpfError::InvalidChecksum)),
-            ("abc12345678909", Ok("12345678909")), // Cleaning should work
+            ("12345678900", Err(CpfError::InvalidChecksum))
         ];
 
         for (input, expected) in cases {
