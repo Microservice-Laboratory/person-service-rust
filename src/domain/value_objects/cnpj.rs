@@ -64,18 +64,6 @@ impl Cnpj {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-
-    pub fn formatted(&self) -> String {
-        format!(
-            "{}.{}.{}/{}-{}-{}",
-            &self.0[0..2],
-            &self.0[2..5],
-            &self.0[5..8],
-            &self.0[8..12],
-            &self.0[12..14],
-            &self.0[14..14] // Oops, fixed formatting below
-        )
-    }
 }
 
 // Corrected formatting
