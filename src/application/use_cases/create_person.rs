@@ -22,13 +22,13 @@ impl<R: PersonRepository> CreatePersonUseCase<R> {
     pub async fn execute(&self, cmd: CreatePersonCommand) -> Result<Person, PersonError> {
         // 1. Lógica de Negócio: Verificar se já existe alguém com esse documento no mesmo tenant
         let tax_id = match &cmd.data {
-            PersonData::Individual { tax_id } => tax_id,
+            PersonData::Individual { tax_id } => tax_id.as_str(),
             PersonData::LegalEntity {
                 business_tax_id, ..
-            } => business_tax_id,
+            } => business_tax_id.as_str(),
             PersonData::Foreign {
                 passport_number, ..
-            } => passport_number,
+            } => passport_number.as_str(),
         };
 
         if self
