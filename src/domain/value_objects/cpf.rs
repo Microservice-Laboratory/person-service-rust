@@ -39,6 +39,10 @@ impl<'de> Deserialize<'de> for Cpf {
 
 impl Cpf {
     pub fn new(value: &str) -> Result<Self, CpfError> {
+        if value.chars().any(|c| !c.is_ascii_digit() && !['.', '-', '/'].contains(&c)) {
+            return Err(CpfError::InvalidFormat);
+        }
+        
         let cleaned: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
 
         if cleaned.len() != 11 {
