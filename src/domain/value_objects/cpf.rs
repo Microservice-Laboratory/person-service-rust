@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -39,10 +39,13 @@ impl<'de> Deserialize<'de> for Cpf {
 
 impl Cpf {
     pub fn new(value: &str) -> Result<Self, CpfError> {
-        if value.chars().any(|c| !c.is_ascii_digit() && !['.', '-', '/'].contains(&c)) {
+        if value
+            .chars()
+            .any(|c| !c.is_ascii_digit() && !['.', '-', '/'].contains(&c))
+        {
             return Err(CpfError::InvalidFormat);
         }
-        
+
         let cleaned: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
 
         if cleaned.len() != 11 {
@@ -53,10 +56,7 @@ impl Cpf {
             return Err(CpfError::IdenticalDigits);
         }
 
-        let digits: Vec<u32> = cleaned
-            .chars()
-            .map(|c| c.to_digit(10).unwrap())
-            .collect();
+        let digits: Vec<u32> = cleaned.chars().map(|c| c.to_digit(10).unwrap()).collect();
 
         if !validate_checksum(&digits) {
             return Err(CpfError::InvalidChecksum);
@@ -144,26 +144,36 @@ mod tests {
     #[test]
     fn test_cpf_validation() {
         let cases = vec![
-            ("52998224725", Ok("52998224725")),     // Valid unformatted
-            ("529.982.247-25", Ok("52998224725")),   // Valid formatted
-            ("12345678909", Ok("12345678909")),     // Valid unformatted
-            ("123.456.789-09", Ok("12345678909")),   // Valid formatted
+            ("52998224725", Ok("52998224725")),    // Valid unformatted
+            ("529.982.247-25", Ok("52998224725")), // Valid formatted
+            ("12345678909", Ok("12345678909")),    // Valid unformatted
+            ("123.456.789-09", Ok("12345678909")), // Valid formatted
             ("11111111111", Err(CpfError::IdenticalDigits)),
             ("222.222.222-22", Err(CpfError::IdenticalDigits)),
             ("1234567890", Err(CpfError::InvalidLength)),
             ("123456789012", Err(CpfError::InvalidLength)),
-            ("12345678900", Err(CpfError::InvalidChecksum))
+            ("12345678900", Err(CpfError::InvalidChecksum)),
         ];
 
         for (input, expected) in cases {
             let result = Cpf::new(input);
             match expected {
                 Ok(val) => {
-                    assert!(result.is_ok(), "Expected Ok for {}, got {:?}", input, result);
+                    assert!(
+                        result.is_ok(),
+                        "Expected Ok for {}, got {:?}",
+                        input,
+                        result
+                    );
                     assert_eq!(result.unwrap().as_str(), val);
                 }
                 Err(err) => {
-                    assert!(result.is_err(), "Expected Err for {}, got {:?}", input, result);
+                    assert!(
+                        result.is_err(),
+                        "Expected Err for {}, got {:?}",
+                        input,
+                        result
+                    );
                     assert_eq!(result.unwrap_err(), err);
                 }
             }

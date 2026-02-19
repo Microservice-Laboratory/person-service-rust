@@ -38,3 +38,8 @@ tracing-subscriber = "0.3"
 # 6. Banco de Dados (Leitura - MongoDB como exemplo de Doc DB)
 mongodb = "3.5.1"
 thiserror = "2.0"
+
+[dev-dependencies.cargo-husky]
+version = "1"
+default-features = false
+features = ["precommit-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"]

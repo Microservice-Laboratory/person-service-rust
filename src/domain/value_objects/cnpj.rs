@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -49,10 +49,7 @@ impl Cnpj {
             return Err(CnpjError::IdenticalDigits);
         }
 
-        let digits: Vec<u32> = cleaned
-            .chars()
-            .map(|c| c.to_digit(10).unwrap())
-            .collect();
+        let digits: Vec<u32> = cleaned.chars().map(|c| c.to_digit(10).unwrap()).collect();
 
         if !validate_checksum(&digits) {
             return Err(CnpjError::InvalidChecksum);
@@ -151,7 +148,7 @@ mod tests {
     fn test_cnpj_validation() {
         let cases = vec![
             ("12.345.678/0001-95", Ok("12345678000195")), // Valid formatted
-            ("12345678000195", Ok("12345678000195")),    // Valid unformatted
+            ("12345678000195", Ok("12345678000195")),     // Valid unformatted
             ("11111111111111", Err(CnpjError::IdenticalDigits)),
             ("12345678000196", Err(CnpjError::InvalidChecksum)),
             ("1234567800019", Err(CnpjError::InvalidLength)),
@@ -163,11 +160,21 @@ mod tests {
             let result = Cnpj::new(input);
             match expected {
                 Ok(val) => {
-                    assert!(result.is_ok(), "Expected Ok for {}, got {:?}", input, result);
+                    assert!(
+                        result.is_ok(),
+                        "Expected Ok for {}, got {:?}",
+                        input,
+                        result
+                    );
                     assert_eq!(result.unwrap().as_str(), val);
                 }
                 Err(err) => {
-                    assert!(result.is_err(), "Expected Err for {}, got {:?}", input, result);
+                    assert!(
+                        result.is_err(),
+                        "Expected Err for {}, got {:?}",
+                        input,
+                        result
+                    );
                     assert_eq!(result.unwrap_err(), err);
                 }
             }

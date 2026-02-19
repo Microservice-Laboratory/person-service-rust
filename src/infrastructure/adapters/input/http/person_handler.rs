@@ -1,7 +1,7 @@
 use super::person_dto::CreatePersonRequest;
-use crate::domain::entities::person::PersonData;
 use crate::AppState;
 use crate::application::use_cases::create_person::CreatePersonCommand;
+use crate::domain::entities::person::PersonData;
 use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::{Json, http::StatusCode};
