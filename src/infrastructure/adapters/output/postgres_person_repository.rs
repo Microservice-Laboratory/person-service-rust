@@ -1,11 +1,11 @@
 use crate::domain::entities::person::{Person, PersonData};
 use crate::domain::ports::output::person_repository::{PersonError, PersonRepository};
+use crate::domain::value_objects::{Cnpj, Cpf};
 use async_trait::async_trait;
 use sqlx::PgPool;
 use sqlx::Row;
-use crate::domain::value_objects::{Cnpj, Cpf};
-use uuid::Uuid;
 use std::convert::TryFrom;
+use uuid::Uuid;
 
 pub struct PostgresPersonRepository {
     pool: PgPool,
@@ -143,7 +143,10 @@ impl PersonRepository for PostgresPersonRepository {
                         })?;
                         PersonData::Individual {
                             tax_id: Cpf::try_from(tax_id_str).map_err(|e| {
-                                PersonError::DatabaseError(format!("Invalid CPF in database: {}", e))
+                                PersonError::DatabaseError(format!(
+                                    "Invalid CPF in database: {}",
+                                    e
+                                ))
                             })?,
                         }
                     }
@@ -153,7 +156,10 @@ impl PersonRepository for PostgresPersonRepository {
                         })?;
                         PersonData::LegalEntity {
                             business_tax_id: Cnpj::try_from(business_tax_id_str).map_err(|e| {
-                                PersonError::DatabaseError(format!("Invalid CNPJ in database: {}", e))
+                                PersonError::DatabaseError(format!(
+                                    "Invalid CNPJ in database: {}",
+                                    e
+                                ))
                             })?,
                             trade_name: legal_trade_name,
                         }

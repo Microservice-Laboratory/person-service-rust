@@ -37,7 +37,8 @@ impl TryInto<PersonData> for PersonDataDTO {
     fn try_into(self) -> Result<PersonData, Self::Error> {
         match self {
             PersonDataDTO::Individual { tax_id } => {
-                let cpf = Cpf::new(&tax_id).map_err(|e| DtoError::ValidationError(e.to_string()))?;
+                let cpf =
+                    Cpf::new(&tax_id).map_err(|e| DtoError::ValidationError(e.to_string()))?;
                 Ok(PersonData::Individual { tax_id: cpf })
             }
             PersonDataDTO::LegalEntity {

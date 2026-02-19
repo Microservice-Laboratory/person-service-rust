@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::domain::value_objects::{Cnpj, Cpf};
 use crate::domain::entities::outbox::OutboxEvent;
+use crate::domain::value_objects::{Cnpj, Cpf};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PersonData {
