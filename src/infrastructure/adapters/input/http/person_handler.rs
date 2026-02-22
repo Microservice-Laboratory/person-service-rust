@@ -21,15 +21,16 @@ pub async fn create_person(
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
-    let mut addresses = Vec::new();
-    if let Some(dto_addresses) = payload.addresses {
-        for ad_dto in dto_addresses {
-            match ad_dto.to_entity(tenant_id, user_id) {
-                Ok(addr) => addresses.push(addr),
-                Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
-            }
-        }
-    }
+    let addresses = match payload
+        .addresses
+        .unwrap_or_default()
+        .into_iter()
+        .map(|dto| dto.to_entity(tenant_id, user_id))
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(addr) => addr,
+        Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    };
 
     let command = CreatePersonCommand {
         tenant_id,
