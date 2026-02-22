@@ -1,4 +1,4 @@
-use crate::domain::entities::person::{Person, PersonData};
+use crate::domain::entities::person::{Address, Person, PersonData};
 use crate::domain::ports::output::person_repository::{PersonError, PersonRepository};
 use uuid::Uuid;
 
@@ -8,6 +8,7 @@ pub struct CreatePersonCommand {
     pub name: String,
     pub created_by: Uuid,
     pub data: PersonData,
+    pub addresses: Vec<Address>,
 }
 
 pub struct CreatePersonUseCase<R: PersonRepository> {
@@ -43,14 +44,17 @@ impl<R: PersonRepository> CreatePersonUseCase<R> {
         }
 
         // 2. Criação da Entidade de Domínio (Onde as regras de negócio residem)
-        let person = Person {
-            id: Uuid::new_v4(), // No Rust, geramos o UUID no domínio para manter a posse do ID
-            name: cmd.name,
-            tenant_id: cmd.tenant_id,
-            created_by: cmd.created_by,
-            created_at: chrono::Utc::now(),
-            data: cmd.data,
-        };
+        let mut person = Person::new(
+            Uuid::new_v4(), // No Rust, geramos o UUID no domínio para manter a posse do ID
+            cmd.name,
+            cmd.tenant_id,
+            cmd.created_by,
+            cmd.data,
+        );
+
+        for addr in cmd.addresses {
+            person.add_address(addr);
+        }
 
         // 3. Persistência através do Port de Saída (Adapter será chamado aqui)
         self.repository.save(&person).await?;
