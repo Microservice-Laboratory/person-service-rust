@@ -1,6 +1,6 @@
-use crate::domain::entities::person::{Person, PersonData};
+use crate::domain::entities::person::{Address, Person, PersonData};
 use crate::domain::ports::output::person_repository::{PersonError, PersonRepository};
-use crate::domain::value_objects::{Cnpj, Cpf};
+use crate::domain::value_objects::{Cnpj, Cpf, ZipCode};
 use async_trait::async_trait;
 use sqlx::PgPool;
 use sqlx::Row;
@@ -100,6 +100,38 @@ impl PersonRepository for PostgresPersonRepository {
         }
         .map_err(|e| PersonError::DatabaseError(e.to_string()))?;
 
+        // 3. Inserir endereços
+        for addr in &person.addresses {
+            sqlx::query(
+                r#"
+                INSERT INTO person_addresses (
+                    id, person_id, street, number, complement, neighborhood, 
+                    zipcode, ibge_code, state, state_uf, city, country, 
+                    is_main, tenant_id, created_by, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                "#,
+            )
+            .bind(addr.id)
+            .bind(person.id)
+            .bind(&addr.street)
+            .bind(&addr.number)
+            .bind(&addr.complement)
+            .bind(&addr.neighborhood)
+            .bind(addr.zip_code.value())
+            .bind(&addr.ibge_code)
+            .bind(&addr.state)
+            .bind(&addr.state_uf)
+            .bind(&addr.city)
+            .bind(&addr.country)
+            .bind(addr.is_main)
+            .bind(person.tenant_id)
+            .bind(addr.created_by)
+            .bind(addr.created_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| PersonError::DatabaseError(e.to_string()))?;
+        }
+
         // Finaliza a transação
         tx.commit()
             .await
@@ -171,6 +203,45 @@ impl PersonRepository for PostgresPersonRepository {
                     }
                 };
 
+                // Reconstrução da lista de endereços
+                let addresses_rows = sqlx::query(
+                    r#"
+                    SELECT 
+                        id, street, number, complement, neighborhood, zipcode, 
+                        ibge_code, state, state_uf, city, country, is_main, 
+                        tenant_id, created_by, created_at
+                    FROM person_addresses
+                    WHERE person_id = $1 AND tenant_id = $2
+                    "#,
+                )
+                .bind(id)
+                .bind(tenant_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| PersonError::DatabaseError(e.to_string()))?;
+
+                let mut addresses = Vec::new();
+                for ar in addresses_rows {
+                    addresses.push(Address {
+                        id: ar.get("id"),
+                        street: ar.get("street"),
+                        number: ar.get("number"),
+                        complement: ar.get("complement"),
+                        neighborhood: ar.get("neighborhood"),
+                        zip_code: ZipCode::new(ar.get("zipcode"), ar.get("country"))
+                            .map_err(|e| PersonError::DatabaseError(e.to_string()))?,
+                        ibge_code: ar.get("ibge_code"),
+                        state: ar.get("state"),
+                        state_uf: ar.get("state_uf"),
+                        city: ar.get("city"),
+                        country: ar.get("country"),
+                        is_main: ar.get("is_main"),
+                        tenant_id: ar.get("tenant_id"),
+                        created_by: ar.get("created_by"),
+                        created_at: ar.get("created_at"),
+                    });
+                }
+
                 Ok(Some(Person {
                     id: r.get("id"),
                     name: r.get("name"),
@@ -178,6 +249,7 @@ impl PersonRepository for PostgresPersonRepository {
                     created_by: r.get("created_by"),
                     created_at: r.get("created_at"),
                     data,
+                    addresses,
                 }))
             }
             None => Ok(None),

@@ -21,11 +21,22 @@ pub async fn create_person(
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
+    let mut addresses = Vec::new();
+    if let Some(dto_addresses) = payload.addresses {
+        for ad_dto in dto_addresses {
+            match ad_dto.to_entity(tenant_id, user_id) {
+                Ok(addr) => addresses.push(addr),
+                Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+            }
+        }
+    }
+
     let command = CreatePersonCommand {
         tenant_id,
         name: payload.name,
         created_by: user_id,
         data: domain_data,
+        addresses,
     };
 
     match use_case.execute(command).await {
