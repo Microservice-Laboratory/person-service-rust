@@ -1,6 +1,9 @@
+use crate::domain::entities::outbox::EventType;
 use crate::domain::entities::person::{Address, Person, PersonData};
+use crate::domain::ports::output::outbox_repository::OutboxRepository;
 use crate::domain::ports::output::person_repository::{PersonError, PersonRepository};
 use crate::domain::value_objects::{Cnpj, Cpf, ZipCode};
+use crate::infrastructure::adapters::output::postgres_outbox_repository::PostgresOutboxRepository;
 use async_trait::async_trait;
 use sqlx::PgPool;
 use sqlx::Row;
@@ -131,6 +134,14 @@ impl PersonRepository for PostgresPersonRepository {
             .await
             .map_err(|e| PersonError::DatabaseError(e.to_string()))?;
         }
+
+        // 4. Criar evento de Outbox
+        let outbox = person.to_outbox(EventType::PersonCreated);
+        let outbox_repo = PostgresOutboxRepository::new();
+        outbox_repo
+            .save_transactional(&mut tx, &outbox)
+            .await
+            .map_err(|e| PersonError::DatabaseError(e.to_string()))?;
 
         // Finaliza a transação
         tx.commit()
