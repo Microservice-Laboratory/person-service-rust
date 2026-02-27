@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::domain::entities::outbox::OutboxEvent;
+use crate::domain::entities::outbox::{AggregateType, EventType, Outbox};
 use crate::domain::value_objects::{Cnpj, Cpf};
 
 pub mod address;
@@ -65,17 +65,16 @@ impl Person {
         self.addresses.push(address);
     }
 
-    pub fn to_outbox_event(&self, event_type: &str) -> OutboxEvent {
-        OutboxEvent {
-            id: Uuid::new_v4(),
-            tenant_id: self.tenant_id,
-            aggregate_id: self.id,
-            aggregate_type: "PERSON".to_string(),
-            event_type: event_type.to_string(),
-            payload: serde_json::to_value(self).unwrap_or_default(),
-            occurred_at: Utc::now(),
-            processed_at: None,
-        }
+    pub fn to_outbox(&self, event_type: EventType) -> Outbox {
+        let payload = serde_json::to_value(self).unwrap_or_default();
+        Outbox::new(
+            self.tenant_id,
+            self.id,
+            AggregateType::Person,
+            event_type,
+            payload,
+            self.created_by,
+        )
     }
 }
 
