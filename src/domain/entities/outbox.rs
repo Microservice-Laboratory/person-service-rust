@@ -49,3 +49,20 @@ impl Outbox {
         }
     }
 }
+
+impl ToString for AggregateType {
+    fn to_string(&self) -> String {
+        match self {
+            AggregateType::Person => "Person".to_string(),
+        }
+    }
+}
+
+impl ToString for EventType {
+    fn to_string(&self) -> String {
+        match self {
+            EventType::PersonCreated => "PersonCreated".to_string(),
+            EventType::PersonUpdated => "PersonUpdated".to_string(),
+        }
+    }
+}
