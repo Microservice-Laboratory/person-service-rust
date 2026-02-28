@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+migrations/
+.env
+.sqlx/
+docs/
+specs/
+database.dbml
+README.md
