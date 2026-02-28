@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+    workflow_dispatch:
+        inputs:
+            environment:
+                description: "Environment to deploy to"
+                required: true
+                default: "develop"
+                type: choice
+                options:
+                    - develop
+                    - testing
+                    - production
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set target file
+              id: vars
+              run: |
+                  if [ "${{ github.event.inputs.environment }}" == "develop" ]; then
+                      echo "filename=develop.yaml" >> $GITHUB_OUTPUT
+                  elif [ "${{ github.event.inputs.environment }}" == "testing" ]; then
+                      echo "filename=testing.yaml" >> $GITHUB_OUTPUT
+                  else
+                      echo "filename=production.yaml" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Log in to Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ secrets.DOCKER_REGISTRY }}
+                  username: ${{ secrets.DOCKER_USERNAME }}
+                  password: ${{ secrets.DOCKER_PASSWORD }}
+
+            - name: Build and Push
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  push: true
+                  tags: ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ github.event.inputs.environment }}
+
+            - name: Update Helm Repo
+              uses: actions/checkout@v4
+              with:
+                  repository: ${{ secrets.HELM_REPO_URL }}
+                  token: ${{ secrets.GH_PAT }}
+                  path: helm-repo
+
+            - name: Update Chart
+              run: |
+                  cd helm-repo
+                  ENV="${{ github.event.inputs.environment }}"
+                  SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+                  TARGET_FILE="${{ steps.meta.outputs.filename }}"
+
+                  sed -i "s|image.tag:.*|image.tag: ${{ github.event.inputs.environment }}|" "$TARGET_FILE"
+
+                  git config user.name "GitHub Actions"
+                  git config user.email "[EMAIL_ADDRESS]"
+
+                  BRANCH_NAME="deploy/$ENV/person-service-rust/$SHORT_SHA"
+                  git checkout -b "$BRANCH_NAME"
+
+                  git add "$TARGET_FILE"
+                  git commit -m "Update image tag for ${{ github.event.inputs.environment }}"
+                  git push origin "$BRANCH_NAME"
+
+            - name: Create Pull Request
+              env:
+                  GH_TOKEN: ${{ secrets.GH_PAT }}
+              run: |
+                  cd helm-repo
+                  ENV="${{ github.event.inputs.environment }}"
+                  SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+                  REPO_NAME="person-service-rust"
+                  ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+                  BRANCH_NAME="deploy/$ENV/$REPO_NAME/$SHORT_SHA"
+
+                  echo "Creating PR for $BRANCH_NAME into main..."
+
+                  gh pr create \
+                    --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
+                    --body "Manual deployment triggered by ${{ github.actor }} for ${{ ENV }}." \
+                    --base main \
+                    --head "$BRANCH_NAME" \
+                    --repo ${{ secrets.HELM_REPO_URL }}
