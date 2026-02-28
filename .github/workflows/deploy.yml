@@ -59,11 +59,14 @@ jobs:
                   path: helm-repo
 
             - name: Update Chart
+              env:
+                  ENVIRONMENT: ${{ github.event.inputs.environment }}
+                  TARGET_FILE: ${{ steps.vars.outputs.filename }}
               run: |
+                  set -euo pipefail
                   cd helm-repo
-                  ENV="${{ github.event.inputs.environment }}"
+                  ENV="$ENVIRONMENT"
                   SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
-                  TARGET_FILE="${{ steps.vars.outputs.filename }}"
 
                   sed -i "s|image.tag:.*|image.tag: $SHORT_SHA|" "$TARGET_FILE"
 
@@ -71,28 +74,41 @@ jobs:
                   git config user.email "[EMAIL_ADDRESS]"
 
                   BRANCH_NAME="deploy/$ENV/person-service-rust/$SHORT_SHA"
-                  git checkout -b "$BRANCH_NAME"
+                  git checkout -B "$BRANCH_NAME"
 
-                  git add "$TARGET_FILE"
-                  git commit -m "Update image tag for ${{ github.event.inputs.environment }}"
-                  git push origin "$BRANCH_NAME"
+                  if git diff --quiet "$TARGET_FILE"; then
+                    echo "No changes to commit for $TARGET_FILE"
+                  else
+                    git add "$TARGET_FILE"
+                    git commit -m "Update image tag for ${{ github.event.inputs.environment }} to $SHORT_SHA"
+                    git push origin "$BRANCH_NAME" --force
+                  fi
 
             - name: Create Pull Request
               env:
                   GH_TOKEN: ${{ secrets.GH_PAT }}
+                  HELM_REPO_URL: ${{ secrets.HELM_REPO_URL }}
+                  ENVIRONMENT: ${{ github.event.inputs.environment }}
               run: |
+                  set -euo pipefail
                   cd helm-repo
-                  ENV="${{ github.event.inputs.environment }}"
+                  ENV="$ENVIRONMENT"
                   SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
                   REPO_NAME="person-service-rust"
                   ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
                   BRANCH_NAME="deploy/$ENV/$REPO_NAME/$SHORT_SHA"
 
-                  echo "Creating PR for $BRANCH_NAME into main..."
+                  # Check if PR already exists
+                  PR_EXISTS=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number')
 
-                  gh pr create \
-                    --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
-                    --body "Manual deployment triggered by $GITHUB_ACTOR for $ENV." \
-                    --base main \
-                    --head "$BRANCH_NAME" \
-                    --repo ${{ secrets.HELM_REPO_URL }}
+                  if [ -n "$PR_EXISTS" ]; then
+                    echo "Pull Request already exists: #$PR_EXISTS. Skipping creation."
+                  else
+                    echo "Creating PR for $BRANCH_NAME into main..."
+                    gh pr create \
+                      --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
+                      --body "Manual deployment triggered by $GITHUB_ACTOR for $ENV." \
+                      --base main \
+                      --head "$BRANCH_NAME" \
+                      --repo "$HELM_REPO_URL"
+                  fi
