@@ -70,8 +70,8 @@ jobs:
 
                   sed -i "s|image.tag:.*|image.tag: $SHORT_SHA|" "$TARGET_FILE"
 
-                  git config user.name "GitHub Actions"
-                  git config user.email "[EMAIL_ADDRESS]"
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
                   BRANCH_NAME="deploy/$ENV/person-service-rust/$SHORT_SHA"
                   git checkout -B "$BRANCH_NAME"
