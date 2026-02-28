@@ -38,12 +38,18 @@ jobs:
                   username: ${{ secrets.DOCKER_USERNAME }}
                   password: ${{ secrets.DOCKER_PASSWORD }}
 
+            - name: Get short SHA
+              id: sha
+              run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
             - name: Build and Push
               uses: docker/build-push-action@v6
               with:
                   context: .
                   push: true
-                  tags: ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ github.event.inputs.environment }}
+                  tags: |
+                      ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ steps.sha.outputs.short_sha }}
+                      ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ github.event.inputs.environment }}
 
             - name: Update Helm Repo
               uses: actions/checkout@v4
@@ -56,10 +62,10 @@ jobs:
               run: |
                   cd helm-repo
                   ENV="${{ github.event.inputs.environment }}"
-                  SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
-                  TARGET_FILE="${{ steps.meta.outputs.filename }}"
+                  SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
+                  TARGET_FILE="${{ steps.vars.outputs.filename }}"
 
-                  sed -i "s|image.tag:.*|image.tag: ${{ github.event.inputs.environment }}|" "$TARGET_FILE"
+                  sed -i "s|image.tag:.*|image.tag: $SHORT_SHA|" "$TARGET_FILE"
 
                   git config user.name "GitHub Actions"
                   git config user.email "[EMAIL_ADDRESS]"
@@ -77,7 +83,7 @@ jobs:
               run: |
                   cd helm-repo
                   ENV="${{ github.event.inputs.environment }}"
-                  SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+                  SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
                   REPO_NAME="person-service-rust"
                   ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
                   BRANCH_NAME="deploy/$ENV/$REPO_NAME/$SHORT_SHA"
@@ -86,7 +92,7 @@ jobs:
 
                   gh pr create \
                     --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
-                    --body "Manual deployment triggered by ${{ github.actor }} for ${{ ENV }}." \
+                    --body "Manual deployment triggered by $GITHUB_ACTOR for $ENV." \
                     --base main \
                     --head "$BRANCH_NAME" \
                     --repo ${{ secrets.HELM_REPO_URL }}
