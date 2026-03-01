@@ -64,11 +64,15 @@ jobs:
           TARGET_FILE: ${{ steps.vars.outputs.filename }}
         run: |
           set -euo pipefail
-          cd helm-repo
-          ENV="$ENVIRONMENT"
+          cd helm-repo/person-service-rust
+          ENV="${{ github.event.inputs.environment }}"
           SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
+          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          USERNAME="${{ secrets.DOCKER_USERNAME }}"
 
-          sed -i "s|image.tag:.*|image.tag: $SHORT_SHA|" "$TARGET_FILE"
+          sed -i "s|repository:.*|repository: $REGISTRY/$USERNAME/person-service-rust|" "$TARGET_FILE"
+
+          sed -i "s|tag:.*|tag: \"$SHORT_SHA\"|" "$TARGET_FILE"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -91,8 +95,8 @@ jobs:
           ENVIRONMENT: ${{ github.event.inputs.environment }}
         run: |
           set -euo pipefail
-          cd helm-repo
-          ENV="$ENVIRONMENT"
+          cd helm-repo/person-service-rust
+          ENV="${{ github.event.inputs.environment }}"
           SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
           REPO_NAME="person-service-rust"
           ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
