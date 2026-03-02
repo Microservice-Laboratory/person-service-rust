@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install sqlx-cli for migrations (pinned to 0.8.3 to match sqlx version)
+RUN cargo install sqlx-cli --version 0.8.3 --no-default-features --features postgres
+
 # Build dependencies (this layer is cached)
 RUN cargo chef cook --release --recipe-path recipe.json
 
