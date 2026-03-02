@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install sqlx-cli for migrations (pinned to 0.8.3 to match sqlx version)
+RUN cargo install sqlx-cli --version 0.8.3 --no-default-features --features postgres
+
 # Build dependencies (this layer is cached)
 RUN cargo chef cook --release --recipe-path recipe.json
 
@@ -50,3 +53,14 @@ EXPOSE 3000
 
 # Start the application
 CMD ["/app/person-service-rust"]
+
+# Migration image (This is for your Migration Job)
+FROM debian:bookworm-slim AS migration
+WORKDIR /app
+RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+# Copy the sqlx binary we installed in the builder stage
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
+# Copy your migration SQL files
+COPY ./migrations ./migrations
+# This image's only job is to run migrations
+ENTRYPOINT ["sqlx", "migrate", "run"]

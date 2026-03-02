@@ -1,114 +1,118 @@
 name: Deploy
 
 on:
-    workflow_dispatch:
-        inputs:
-            environment:
-                description: "Environment to deploy to"
-                required: true
-                default: "develop"
-                type: choice
-                options:
-                    - develop
-                    - testing
-                    - production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - testing
+          - production
 
 jobs:
-    deploy:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Set target file
-              id: vars
-              run: |
-                  if [ "${{ github.event.inputs.environment }}" == "develop" ]; then
-                      echo "filename=develop.yaml" >> $GITHUB_OUTPUT
-                  elif [ "${{ github.event.inputs.environment }}" == "testing" ]; then
-                      echo "filename=testing.yaml" >> $GITHUB_OUTPUT
-                  else
-                      echo "filename=production.yaml" >> $GITHUB_OUTPUT
-                  fi
+      - name: Set target file
+        id: vars
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "develop" ]; then
+            echo "filename=develop.yaml" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.environment }}" == "testing" ]; then
+            echo "filename=testing.yaml" >> $GITHUB_OUTPUT
+          else
+            echo "filename=production.yaml" >> $GITHUB_OUTPUT
+          fi
 
-            - name: Log in to Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ${{ secrets.DOCKER_REGISTRY }}
-                  username: ${{ secrets.DOCKER_USERNAME }}
-                  password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Log in to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-            - name: Get short SHA
-              id: sha
-              run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      - name: Get short SHA
+        id: sha
+        run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-            - name: Build and Push
-              uses: docker/build-push-action@v6
-              with:
-                  context: .
-                  push: true
-                  tags: |
-                      ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ steps.sha.outputs.short_sha }}
-                      ${{ secrets.DOCKER_REGISTRY }}/person-service-rust:${{ github.event.inputs.environment }}
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/person-service-rust:${{ steps.sha.outputs.short_sha }}
+            ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/person-service-rust:${{ github.event.inputs.environment }}
 
-            - name: Update Helm Repo
-              uses: actions/checkout@v4
-              with:
-                  repository: ${{ secrets.HELM_REPO_URL }}
-                  token: ${{ secrets.GH_PAT }}
-                  path: helm-repo
+      - name: Update Helm Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.HELM_REPO_URL }}
+          token: ${{ secrets.GH_PAT }}
+          path: helm-repo
 
-            - name: Update Chart
-              env:
-                  ENVIRONMENT: ${{ github.event.inputs.environment }}
-                  TARGET_FILE: ${{ steps.vars.outputs.filename }}
-              run: |
-                  set -euo pipefail
-                  cd helm-repo
-                  ENV="$ENVIRONMENT"
-                  SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
+      - name: Update Chart
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          TARGET_FILE: ${{ steps.vars.outputs.filename }}
+        run: |
+          set -euo pipefail
+          cd helm-repo/person-service-rust
+          ENV="${{ github.event.inputs.environment }}"
+          SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
+          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          USERNAME="${{ secrets.DOCKER_USERNAME }}"
 
-                  sed -i "s|image.tag:.*|image.tag: $SHORT_SHA|" "$TARGET_FILE"
+          sed -i "s|repository:.*|repository: $REGISTRY/$USERNAME/person-service-rust|" "$TARGET_FILE"
 
-                  git config user.name "github-actions[bot]"
-                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          sed -i "s|tag:.*|tag: \"$SHORT_SHA\"|" "$TARGET_FILE"
 
-                  BRANCH_NAME="deploy/$ENV/person-service-rust/$SHORT_SHA"
-                  git checkout -B "$BRANCH_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-                  if git diff --quiet "$TARGET_FILE"; then
-                    echo "No changes to commit for $TARGET_FILE"
-                  else
-                    git add "$TARGET_FILE"
-                    git commit -m "Update image tag for ${{ github.event.inputs.environment }} to $SHORT_SHA"
-                    git push origin "$BRANCH_NAME" --force
-                  fi
+          BRANCH_NAME="deploy/$ENV/person-service-rust/$SHORT_SHA"
+          git checkout -B "$BRANCH_NAME"
 
-            - name: Create Pull Request
-              env:
-                  GH_TOKEN: ${{ secrets.GH_PAT }}
-                  HELM_REPO_URL: ${{ secrets.HELM_REPO_URL }}
-                  ENVIRONMENT: ${{ github.event.inputs.environment }}
-              run: |
-                  set -euo pipefail
-                  cd helm-repo
-                  ENV="$ENVIRONMENT"
-                  SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
-                  REPO_NAME="person-service-rust"
-                  ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
-                  BRANCH_NAME="deploy/$ENV/$REPO_NAME/$SHORT_SHA"
+          if git diff --quiet "$TARGET_FILE"; then
+            echo "No changes to commit for $TARGET_FILE"
+          else
+            git add "$TARGET_FILE"
+            git commit -m "Update image tag for ${{ github.event.inputs.environment }} to $SHORT_SHA"
+            git push origin "$BRANCH_NAME" --force
+          fi
 
-                  # Check if PR already exists
-                  PR_EXISTS=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number')
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          HELM_REPO_URL: ${{ secrets.HELM_REPO_URL }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          cd helm-repo/person-service-rust
+          ENV="${{ github.event.inputs.environment }}"
+          SHORT_SHA="${{ steps.sha.outputs.short_sha }}"
+          REPO_NAME="person-service-rust"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+          BRANCH_NAME="deploy/$ENV/$REPO_NAME/$SHORT_SHA"
 
-                  if [ -n "$PR_EXISTS" ]; then
-                    echo "Pull Request already exists: #$PR_EXISTS. Skipping creation."
-                  else
-                    echo "Creating PR for $BRANCH_NAME into main..."
-                    gh pr create \
-                      --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
-                      --body "Manual deployment triggered by $GITHUB_ACTOR for $ENV." \
-                      --base main \
-                      --head "$BRANCH_NAME" \
-                      --repo "$HELM_REPO_URL"
-                  fi
+          # Check if PR already exists
+          PR_EXISTS=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number')
+
+          if [ -n "$PR_EXISTS" ]; then
+            echo "Pull Request already exists: #$PR_EXISTS. Skipping creation."
+          else
+            echo "Creating PR for $BRANCH_NAME into main..."
+            gh pr create \
+              --title "[$ENV_UPPER] Deploy $REPO_NAME ($SHORT_SHA)" \
+              --body "Manual deployment triggered by $GITHUB_ACTOR for $ENV." \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --repo "$HELM_REPO_URL"
+          fi
