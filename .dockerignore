@@ -1,7 +1,6 @@
 target/
 .git/
 .github/
-migrations/
 .env
 .sqlx/
 docs/
