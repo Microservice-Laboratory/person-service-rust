@@ -53,14 +53,3 @@ EXPOSE 3000
 
 # Start the application
 CMD ["/app/person-service-rust"]
-
-# Migration image (This is for your Migration Job)
-FROM debian:bookworm-slim AS migration
-WORKDIR /app
-RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
-# Copy the sqlx binary we installed in the builder stage
-COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
-# Copy your migration SQL files
-COPY ./migrations ./migrations
-# This image's only job is to run migrations
-ENTRYPOINT ["sqlx", "migrate", "run"]
