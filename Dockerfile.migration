@@ -1,12 +1,3 @@
-# Stage 1: Build/Install sqlx-cli
-FROM rust:1.88-slim-bookworm AS builder
-
-# Install build dependencies for sqlx-cli
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-
-# Install sqlx-cli (pinned to 0.8.3 to match sqlx version)
-RUN cargo install sqlx-cli --version 0.8.3 --no-default-features --features postgres
-
 # Stage 2: Final migration image
 FROM debian:bookworm-slim AS migration
 WORKDIR /app
@@ -14,9 +5,14 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy the binary from builder and our migration SQL files
+# Copy the binary from builder
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
+
+# NEW: Ensure it is executable (sometimes permissions get lost during the copy)
+RUN chmod +x /usr/local/bin/sqlx
+
+# Copy migrations
 COPY ./migrations ./migrations
 
-# Default entrypoint for running migrations
-ENTRYPOINT ["sqlx", "migrate", "run"]
+# PROFESSIONAL MOVE: Use the absolute path in the Entrypoint
+ENTRYPOINT ["/usr/local/bin/sqlx", "migrate", "run"]
